@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Events - Organizer - MIC Event Check-In</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="container container-wide">
+        <div class="card card-wide">
+            <div class="header-flex">
+                <div>
+                    <div class="role-badge role-organizer">Organizer</div>
+                    <h1>My Managed Events</h1>
+                    <p class="subtitle">Events created by <strong class="highlight-name">{{ name }}</strong></p>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('create_event') }}" class="btn btn-primary">+ Create Event</a>
+                </div>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flashes">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {% if events %}
+                <div class="event-list">
+                    {% for event in events %}
+                        <div class="event-card">
+                            <div class="event-header">
+                                <span class="event-id">ID #{{ event['id'] }}</span>
+                                <span class="event-capacity">
+                                    Registrations: {{ event['registered_count'] }} / {{ event['capacity'] }}
+                                </span>
+                            </div>
+                            <h2 class="event-title">{{ event['name'] }}</h2>
+                            <div class="event-meta">
+                                <span class="event-date">&#128197; {{ event['event_date'] }}</span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <p class="empty-icon">&#128197;</p>
+                    <h3>No events created yet</h3>
+                    <p>Click "Create Event" above to create your first event.</p>
+                </div>
+            {% endif %}
+
+            <div class="card-footer footer-flex">
+                <a href="{{ url_for('organizer_dashboard') }}" class="back-link">&larr; Back to Dashboard</a>
+                <a href="{{ url_for('logout') }}" class="btn-text">Log Out</a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

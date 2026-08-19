@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendee Area - MIC Event Check-In</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <div class="card">
+            <div class="role-badge role-attendee">Attendee</div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flashes">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <h1>Attendee Area</h1>
+            <p class="welcome-text">Welcome, <strong class="highlight-name">{{ name }}</strong>!</p>
+
+            <div class="dashboard-panel">
+                <p class="panel-status">Phase 4 Event Registration &amp; QR Badges Active</p>
+                <p class="panel-description">Register for upcoming events and access your unique QR check-in badges.</p>
+            </div>
+
+            <div class="action-group">
+                <a href="{{ url_for('attendee_events') }}" class="btn btn-primary">Browse Available Events</a>
+                <a href="{{ url_for('attendee_registrations') }}" class="btn btn-secondary">My Registrations &amp; QR Badges</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-secondary">Log Out</a>
+            </div>
+
+            <div class="card-footer">
+                <p><a href="{{ url_for('index') }}" class="back-link">&larr; Back to Home</a></p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

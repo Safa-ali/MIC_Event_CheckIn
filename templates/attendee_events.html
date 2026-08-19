@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Available Events - Attendee - MIC Event Check-In</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="container container-wide">
+        <div class="card card-wide">
+            <div class="header-flex">
+                <div>
+                    <div class="role-badge role-attendee">Attendee</div>
+                    <h1>Available Events</h1>
+                    <p class="subtitle">Upcoming events open for registration</p>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('attendee_registrations') }}" class="btn btn-secondary">My QR Badges</a>
+                </div>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flashes">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {% if events %}
+                <div class="event-list">
+                    {% for event in events %}
+                        {% set remaining = event['capacity'] - event['registered_count'] %}
+                        <div class="event-card">
+                            <div class="event-header">
+                                <span class="event-id">ID #{{ event['id'] }}</span>
+                                <div class="capacity-pill-group">
+                                    <span class="event-capacity">
+                                        {{ event['registered_count'] }} / {{ event['capacity'] }} Registered
+                                    </span>
+                                    {% if remaining > 0 %}
+                                        <span class="spots-badge spots-available">{{ remaining }} spot{% if remaining != 1 %}s{% endif %} left</span>
+                                    {% else %}
+                                        <span class="spots-badge spots-full">Sold Out</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <h2 class="event-title">{{ event['name'] }}</h2>
+                            
+                            <div class="event-card-body">
+                                <p class="event-meta">&#128197; {{ event['event_date'] }}</p>
+                                
+                                <div class="event-actions">
+                                    {% if event['is_registered'] %}
+                                        <span class="badge-registered">&#10003; Registered</span>
+                                        <a href="{{ url_for('attendee_registrations') }}" class="btn btn-small btn-secondary">View QR Badge</a>
+                                    {% elif remaining <= 0 %}
+                                        <button class="btn btn-small btn-disabled" disabled>Event Full</button>
+                                    {% else %}
+                                        <form action="{{ url_for('register_for_event', event_id=event['id']) }}" method="POST">
+                                            <button type="submit" class="btn btn-small btn-primary">Register Now</button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <p class="empty-icon">&#128197;</p>
+                    <h3>No events available right now</h3>
+                    <p>Check back later once organizers publish upcoming events.</p>
+                </div>
+            {% endif %}
+
+            <div class="card-footer footer-flex">
+                <a href="{{ url_for('attendee_area') }}" class="back-link">&larr; Back to Attendee Area</a>
+                <a href="{{ url_for('logout') }}" class="btn-text">Log Out</a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

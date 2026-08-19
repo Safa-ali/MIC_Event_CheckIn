@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Registrations - MIC Event Check-In</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="container container-wide">
+        <div class="card card-wide">
+            <div class="header-flex">
+                <div>
+                    <div class="role-badge role-attendee">Attendee</div>
+                    <h1>My Event Badges</h1>
+                    <p class="subtitle">Registrations &amp; QR Codes for <strong class="highlight-name">{{ name }}</strong></p>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('attendee_events') }}" class="btn btn-secondary">Browse More Events</a>
+                </div>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flashes">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {% if registrations %}
+                <div class="ticket-list">
+                    {% for reg in registrations %}
+                        <div class="ticket-card">
+                            <div class="ticket-details">
+                                <div class="ticket-meta-top">
+                                    <span class="event-id">Event #{{ reg.event_id }}</span>
+                                    <span class="status-pill {% if reg.is_checked_in %}status-checked-in{% else %}status-pending{% endif %}">
+                                        {{ reg.status }}
+                                    </span>
+                                </div>
+                                <h2 class="ticket-event-name">{{ reg.event_name }}</h2>
+                                <p class="ticket-date">&#128197; {{ reg.event_date }}</p>
+                                <div class="ticket-footer-info">
+                                    <span class="ticket-reg-time">Registered: {{ reg.registered_at }}</span>
+                                    <span class="ticket-reg-id">Reg ID: #{{ reg.reg_id }}</span>
+                                </div>
+                            </div>
+                            <div class="ticket-qr-section">
+                                <div class="qr-frame">
+                                    <img src="data:image/png;base64,{{ reg.qr_base64 }}" alt="Event Check-In QR Code" class="qr-code-img">
+                                </div>
+                                <span class="qr-caption">Scan at Entrance</span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <p class="empty-icon">&#127915;</p>
+                    <h3>No event registrations yet</h3>
+                    <p>You haven't registered for any events. Browse upcoming events to claim your QR ticket.</p>
+                    <div style="margin-top: 1.25rem;">
+                        <a href="{{ url_for('attendee_events') }}" class="btn btn-primary">Browse Available Events</a>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="card-footer footer-flex">
+                <a href="{{ url_for('attendee_area') }}" class="back-link">&larr; Back to Attendee Area</a>
+                <a href="{{ url_for('logout') }}" class="btn-text">Log Out</a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

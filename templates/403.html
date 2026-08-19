@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>403 Forbidden - Access Denied</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <div class="card">
+            <div class="status-indicator error-indicator">
+                <span class="pulse-dot error-dot"></span>
+                <span class="status-label error-label">403 Forbidden</span>
+            </div>
+
+            <h1>Access Denied</h1>
+            <p class="message error-text">You do not have permission to access this page with your current role.</p>
+
+            <div class="action-group">
+                {% if session.get('role') == 'organizer' %}
+                    <a href="{{ url_for('organizer_dashboard') }}" class="btn btn-primary">Go to Organizer Dashboard</a>
+                {% elif session.get('role') == 'attendee' %}
+                    <a href="{{ url_for('attendee_area') }}" class="btn btn-primary">Go to Attendee Area</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="btn btn-primary">Log In</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="btn btn-secondary">Log Out</a>
+            </div>
+
+            <div class="card-footer">
+                <p><a href="{{ url_for('index') }}" class="back-link">&larr; Back to Home</a></p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

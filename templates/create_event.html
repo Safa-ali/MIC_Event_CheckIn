@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Event - MIC Event Check-In</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <div class="card">
+            <div class="role-badge role-organizer">Organizer</div>
+            <h1>Create Event</h1>
+            <p class="subtitle">Set up a new event for attendee check-in</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flashes">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <form action="{{ url_for('create_event') }}" method="POST" class="auth-form">
+                <div class="form-group">
+                    <label for="name">Event Name</label>
+                    <input type="text" id="name" name="name" value="{{ name or '' }}" required placeholder="e.g. AI Innovation Summit 2026" autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="event_date">Event Date</label>
+                    <input type="date" id="event_date" name="event_date" value="{{ event_date or '' }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="capacity">Capacity</label>
+                    <input type="number" id="capacity" name="capacity" value="{{ capacity or '' }}" min="1" required placeholder="e.g. 100">
+                </div>
+
+                <button type="submit" class="btn btn-primary">Create Event</button>
+            </form>
+
+            <div class="card-footer">
+                <p><a href="{{ url_for('organizer_events') }}">&larr; My Events</a></p>
+                <p><a href="{{ url_for('organizer_dashboard') }}" class="back-link">&larr; Organizer Dashboard</a></p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

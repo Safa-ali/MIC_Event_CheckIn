@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIC Event Check-In System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <div class="card">
+            <div class="status-indicator">
+                <span class="pulse-dot"></span>
+                <span class="status-label">Phase 2 Active</span>
+            </div>
+
+            <h1>MIC Event Check-In System</h1>
+            <p class="message">Authentication &amp; Role-Based Access Ready</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flashes">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <div class="action-group">
+                {% if session.get('user_id') %}
+                    {% if session.get('role') == 'organizer' %}
+                        <a href="{{ url_for('organizer_dashboard') }}" class="btn btn-primary">Go to Organizer Dashboard</a>
+                    {% else %}
+                        <a href="{{ url_for('attendee_area') }}" class="btn btn-primary">Go to Attendee Area</a>
+                    {% endif %}
+                    <a href="{{ url_for('logout') }}" class="btn btn-secondary">Log Out</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="btn btn-primary">Log In</a>
+                    <a href="{{ url_for('register') }}" class="btn btn-secondary">Register</a>
+                {% endif %}
+            </div>
+
+            <div class="info-footer">
+                <p>Organizer &amp; Attendee Authentication Active</p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
