@@ -446,7 +446,7 @@ def register_for_event(event_id):
 @role_required("attendee")
 def attendee_registrations():
     """
-    Displays the authenticated attendee's registered events with unique QR badges.
+    Displays the authenticated attendee's registered events with unique QR badges and check-in status.
     """
     conn = get_db_connection()
     try:
@@ -478,6 +478,7 @@ def attendee_registrations():
             "qr_token": r["qr_token"],
             "qr_base64": qr_b64,
             "registered_at": r["registered_at"],
+            "checked_in_at": r["checked_in_at"],
             "status": status,
             "is_checked_in": bool(r["checked_in_at"]),
         })
@@ -487,6 +488,121 @@ def attendee_registrations():
         registrations=registrations,
         name=session.get("name"),
     )
+
+
+# ==============================================================================
+# Phase 5: QR Code Scanning & Check-In Processing
+# ==============================================================================
+
+@app.route("/organizer/scan")
+@login_required
+@role_required("organizer")
+def organizer_scan():
+    """
+    Organizer-only QR code camera scanner and manual token entry interface.
+    """
+    return render_template("scanner.html", name=session.get("name"))
+
+
+@app.route("/api/checkin", methods=["POST"])
+@login_required
+@role_required("organizer")
+def api_checkin():
+    """
+    Validates QR token and executes atomic check-in processing.
+    Enforces organizer event ownership and database-level duplicate check-in prevention.
+    """
+    # Accept both JSON payload and form data
+    data = request.get_json(silent=True) or request.form
+    qr_token = data.get("qr_token", "").strip() if data else ""
+
+    if not qr_token:
+        return jsonify({"success": False, "message": "QR token is required."}), 400
+
+    conn = get_db_connection()
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE;")
+
+        # 1. Resolve registration, event, and attendee details from token
+        row = conn.execute(
+            """
+            SELECT r.id AS reg_id, r.event_id, r.user_id, r.qr_token, r.checked_in_at,
+                   e.name AS event_name, e.created_by AS event_owner,
+                   u.name AS attendee_name, u.email AS attendee_email
+            FROM registrations r
+            JOIN events e ON r.event_id = e.id
+            JOIN users u ON r.user_id = u.id
+            WHERE r.qr_token = ?
+            """,
+            (qr_token,),
+        ).fetchone()
+
+        if not row:
+            conn.execute("ROLLBACK;")
+            return jsonify({"success": False, "message": "Invalid QR code. Registration not found."}), 404
+
+        # 2. Enforce event ownership: only the organizer who created the event can check attendees in
+        if row["event_owner"] != session["user_id"]:
+            conn.execute("ROLLBACK;")
+            return jsonify({
+                "success": False,
+                "message": f"Unauthorized. You do not manage the event '{row['event_name']}'."
+            }), 403
+
+        # 3. Duplicate check-in verification
+        if row["checked_in_at"] is not None:
+            conn.execute("ROLLBACK;")
+            return jsonify({
+                "success": False,
+                "message": f"Already checked in at {row['checked_in_at']}.",
+                "attendee_name": row["attendee_name"],
+                "event_name": row["event_name"],
+                "checked_in_at": row["checked_in_at"],
+            }), 400
+
+        # 4. Atomic conditional update: guarantees race-condition safety across threads & processes
+        now_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor = conn.execute(
+            """
+            UPDATE registrations
+            SET checked_in_at = ?
+            WHERE id = ? AND checked_in_at IS NULL
+            """,
+            (now_iso, row["reg_id"]),
+        )
+
+        if cursor.rowcount == 0:
+            conn.execute("ROLLBACK;")
+            updated_row = conn.execute(
+                "SELECT checked_in_at FROM registrations WHERE id = ?", (row["reg_id"],)
+            ).fetchone()
+            existing_ts = updated_row["checked_in_at"] if updated_row else now_iso
+            return jsonify({
+                "success": False,
+                "message": f"Already checked in at {existing_ts}.",
+                "attendee_name": row["attendee_name"],
+                "event_name": row["event_name"],
+                "checked_in_at": existing_ts,
+            }), 400
+
+        conn.execute("COMMIT;")
+        return jsonify({
+            "success": True,
+            "message": "Check-in successful!",
+            "attendee_name": row["attendee_name"],
+            "attendee_email": row["attendee_email"],
+            "event_name": row["event_name"],
+            "checked_in_at": now_iso,
+        }), 200
+    except Exception:
+        try:
+            conn.execute("ROLLBACK;")
+        except Exception:
+            pass
+        return jsonify({"success": False, "message": "A server error occurred during check-in."}), 500
+    finally:
+        conn.close()
 
 
 # ==============================================================================

@@ -33,7 +33,7 @@
             {% if registrations %}
                 <div class="ticket-list">
                     {% for reg in registrations %}
-                        <div class="ticket-card">
+                        <div class="ticket-card {% if reg.is_checked_in %}ticket-checked-in{% endif %}">
                             <div class="ticket-details">
                                 <div class="ticket-meta-top">
                                     <span class="event-id">Event #{{ reg.event_id }}</span>
@@ -42,17 +42,34 @@
                                     </span>
                                 </div>
                                 <h2 class="ticket-event-name">{{ reg.event_name }}</h2>
-                                <p class="ticket-date">&#128197; {{ reg.event_date }}</p>
+                                <p class="ticket-date">&#128197; Event Date: {{ reg.event_date }}</p>
+                                
+                                {% if reg.is_checked_in %}
+                                    <div class="checkin-confirmed-box">
+                                        <span class="checkin-icon">&#10003;</span>
+                                        <div>
+                                            <p class="checkin-label">Check-In Confirmed</p>
+                                            <p class="checkin-timestamp">{{ reg.checked_in_at }}</p>
+                                        </div>
+                                    </div>
+                                {% endif %}
+
                                 <div class="ticket-footer-info">
                                     <span class="ticket-reg-time">Registered: {{ reg.registered_at }}</span>
                                     <span class="ticket-reg-id">Reg ID: #{{ reg.reg_id }}</span>
                                 </div>
                             </div>
                             <div class="ticket-qr-section">
-                                <div class="qr-frame">
+                                <div class="qr-frame {% if reg.is_checked_in %}qr-frame-checked{% endif %}">
                                     <img src="data:image/png;base64,{{ reg.qr_base64 }}" alt="Event Check-In QR Code" class="qr-code-img">
                                 </div>
-                                <span class="qr-caption">Scan at Entrance</span>
+                                <span class="qr-caption">
+                                    {% if reg.is_checked_in %}
+                                        Badge Verified
+                                    {% else %}
+                                        Scan at Entrance
+                                    {% endif %}
+                                </span>
                             </div>
                         </div>
                     {% endfor %}

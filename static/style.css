@@ -497,6 +497,11 @@ select option {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
+.ticket-checked-in {
+    border-left: 4px solid var(--success);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(20, 83, 45, 0.25));
+}
+
 .ticket-details {
     flex: 1;
     min-width: 240px;
@@ -530,6 +535,37 @@ select option {
     background-color: rgba(34, 197, 94, 0.15);
     color: var(--success);
     border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.checkin-confirmed-box {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background-color: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 0.5rem;
+    padding: 0.6rem 0.85rem;
+    margin: 0.35rem 0;
+}
+
+.checkin-icon {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--success);
+}
+
+.checkin-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--success);
+    letter-spacing: 0.05em;
+}
+
+.checkin-timestamp {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    font-family: monospace;
 }
 
 .ticket-event-name {
@@ -570,6 +606,11 @@ select option {
     justify-content: center;
 }
 
+.qr-frame-checked {
+    box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
+    border: 2px solid var(--success);
+}
+
 .qr-code-img {
     width: 140px;
     height: 140px;
@@ -583,6 +624,178 @@ select option {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 600;
+}
+
+/* ==========================================================================
+   Phase 5: Scanner & Live Feedback Styles
+   ========================================================================== */
+
+.scanner-section {
+    margin-bottom: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.scanner-wrapper {
+    width: 100%;
+    max-width: 480px;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background-color: #000000;
+    border: 2px solid var(--border-color);
+    margin-bottom: 1rem;
+}
+
+.scanner-viewport {
+    width: 100%;
+    min-height: 260px;
+}
+
+.scanner-controls {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.scanner-result-box {
+    border-radius: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+    text-align: left;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.result-success {
+    background-color: var(--success-bg);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    color: #f8fafc;
+}
+
+.result-success .result-badge {
+    background-color: var(--success);
+    color: #0f172a;
+}
+
+.result-warning {
+    background-color: var(--warning-bg);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #f8fafc;
+}
+
+.result-warning .result-badge {
+    background-color: var(--warning);
+    color: #0f172a;
+}
+
+.result-error {
+    background-color: var(--error-bg);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #f8fafc;
+}
+
+.result-error .result-badge {
+    background-color: var(--error);
+    color: #f8fafc;
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.result-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.2rem 0.55rem;
+    border-radius: 0.25rem;
+    letter-spacing: 0.05em;
+}
+
+.result-time {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-family: monospace;
+}
+
+.result-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.result-message {
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+}
+
+.result-details {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.result-details p {
+    color: var(--text-secondary);
+}
+
+.result-details strong {
+    color: var(--text-primary);
+}
+
+/* Manual Token Entry */
+.manual-input-section {
+    margin-bottom: 1.5rem;
+}
+
+.section-divider {
+    text-align: center;
+    position: relative;
+    margin: 1.5rem 0 1rem;
+}
+
+.section-divider::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background-color: var(--border-color);
+}
+
+.section-divider span {
+    position: relative;
+    background-color: var(--bg-card);
+    padding: 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+}
+
+.manual-token-form {
+    width: 100%;
+}
+
+.form-group-inline {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.form-group-inline input {
+    flex: 1;
 }
 
 /* Empty State */

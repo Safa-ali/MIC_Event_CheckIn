@@ -25,12 +25,13 @@
             <p class="welcome-text">Welcome, <strong class="highlight-name">{{ name }}</strong>!</p>
 
             <div class="dashboard-panel">
-                <p class="panel-status">Phase 3 Event Management Active</p>
-                <p class="panel-description">Create and manage your events below.</p>
+                <p class="panel-status">Phase 5 QR Scanner &amp; Check-In Active</p>
+                <p class="panel-description">Manage your events, view attendee lists, and scan attendee QR badges at the entrance.</p>
             </div>
 
             <div class="action-group">
-                <a href="{{ url_for('create_event') }}" class="btn btn-primary">+ Create New Event</a>
+                <a href="{{ url_for('organizer_scan') }}" class="btn btn-primary">&#128247; Scan Attendee QR Codes</a>
+                <a href="{{ url_for('create_event') }}" class="btn btn-secondary">+ Create New Event</a>
                 <a href="{{ url_for('organizer_events') }}" class="btn btn-secondary">View My Events</a>
                 <a href="{{ url_for('logout') }}" class="btn btn-secondary">Log Out</a>
             </div>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Scanner - Organizer - MIC Event Check-In</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Free HTML5 QR Code Scanning Library -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+    <main class="container container-wide">
+        <div class="card card-wide">
+            <div class="header-flex">
+                <div>
+                    <div class="role-badge role-organizer">Organizer</div>
+                    <h1>Event Check-In Scanner</h1>
+                    <p class="subtitle">Live QR scanning for organizer <strong class="highlight-name">{{ name }}</strong></p>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('organizer_events') }}" class="btn btn-secondary">My Events</a>
+                </div>
+            </div>
+
+            <!-- Live Status Alert Result Container -->
+            <div id="scan-result" class="scanner-result-box" style="display: none;">
+                <div class="result-header">
+                    <span id="result-badge" class="result-badge">STATUS</span>
+                    <span id="result-time" class="result-time"></span>
+                </div>
+                <h3 id="result-title" class="result-title"></h3>
+                <p id="result-message" class="result-message"></p>
+                <div id="result-details" class="result-details">
+                    <p><strong>Attendee:</strong> <span id="res-attendee"></span></p>
+                    <p><strong>Event:</strong> <span id="res-event"></span></p>
+                    <p id="res-checkin-row" style="display: none;"><strong>Check-In Time:</strong> <span id="res-checkin-time"></span></p>
+                </div>
+            </div>
+
+            <!-- Scanner Viewport and Controls -->
+            <div class="scanner-section">
+                <div class="scanner-wrapper">
+                    <div id="qr-reader" class="scanner-viewport"></div>
+                </div>
+
+                <div class="scanner-controls">
+                    <button id="btn-start-scan" class="btn btn-primary" onclick="startScanner()">Start Camera Scanner</button>
+                    <button id="btn-stop-scan" class="btn btn-secondary" style="display: none;" onclick="stopScanner()">Stop Camera</button>
+                </div>
+            </div>
+
+            <!-- Manual Token Input Section -->
+            <div class="manual-input-section">
+                <div class="section-divider">
+                    <span>OR ENTER QR TOKEN MANUALLY</span>
+                </div>
+
+                <form id="manual-form" onsubmit="handleManualSubmit(event)" class="manual-token-form">
+                    <div class="form-group-inline">
+                        <input type="text" id="manual-token" placeholder="Paste or type 32+ character QR token..." required autocomplete="off">
+                        <button type="submit" id="btn-manual-submit" class="btn btn-primary">Check In</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card-footer footer-flex">
+                <a href="{{ url_for('organizer_dashboard') }}" class="back-link">&larr; Back to Dashboard</a>
+                <a href="{{ url_for('logout') }}" class="btn-text">Log Out</a>
+            </div>
+        </div>
+    </main>
+
+    <!-- Scanner Script -->
+    <script>
+        let html5QrCode = null;
+        let isScanning = false;
+        let lastScannedToken = "";
+        let lastScanTimestamp = 0;
+
+        function showResult(type, title, message, attendee = "", eventName = "", checkinTime = "") {
+            const box = document.getElementById("scan-result");
+            const badge = document.getElementById("result-badge");
+            const resTitle = document.getElementById("result-title");
+            const resMsg = document.getElementById("result-message");
+            const resAttendee = document.getElementById("res-attendee");
+            const resEvent = document.getElementById("res-event");
+            const resDetails = document.getElementById("result-details");
+            const checkinRow = document.getElementById("res-checkin-row");
+            const resCheckinTime = document.getElementById("res-checkin-time");
+            const resTime = document.getElementById("result-time");
+
+            box.className = "scanner-result-box result-" + type;
+            badge.innerText = type.toUpperCase();
+            resTitle.innerText = title;
+            resMsg.innerText = message;
+            resTime.innerText = new Date().toLocaleTimeString();
+
+            if (attendee || eventName) {
+                resAttendee.innerText = attendee || "N/A";
+                resEvent.innerText = eventName || "N/A";
+                resDetails.style.display = "block";
+            } else {
+                resDetails.style.display = "none";
+            }
+
+            if (checkinTime) {
+                checkinRow.style.display = "block";
+                resCheckinTime.innerText = checkinTime;
+            } else {
+                checkinRow.style.display = "none";
+            }
+
+            box.style.display = "block";
+            box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+
+        async function processToken(qrToken) {
+            if (!qrToken || qrToken.trim() === "") return;
+            qrToken = qrToken.trim();
+
+            // Prevent rapid double-reads of the same token in camera loop
+            const now = Date.now();
+            if (qrToken === lastScannedToken && (now - lastScanTimestamp) < 3000) {
+                return;
+            }
+            lastScannedToken = qrToken;
+            lastScanTimestamp = now;
+
+            try {
+                const response = await fetch("{{ url_for('api_checkin') }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({ qr_token: qrToken })
+                });
+
+                const data = await response.json();
+
+                if (response.status === 200 && data.success) {
+                    showResult(
+                        "success",
+                        "✓ Check-In Successful!",
+                        data.message,
+                        data.attendee_name,
+                        data.event_name,
+                        data.checked_in_at
+                    );
+                } else if (response.status === 400) {
+                    showResult(
+                        "warning",
+                        "⚠ Duplicate Check-In",
+                        data.message,
+                        data.attendee_name || "Registered Attendee",
+                        data.event_name || "",
+                        data.checked_in_at || ""
+                    );
+                } else if (response.status === 403) {
+                    showResult(
+                        "error",
+                        "⛔ Unauthorized Event",
+                        data.message,
+                        "",
+                        data.event_name || ""
+                    );
+                } else if (response.status === 404) {
+                    showResult(
+                        "error",
+                        "✕ Invalid QR Code",
+                        data.message
+                    );
+                } else {
+                    showResult(
+                        "error",
+                        "Error",
+                        data.message || "Failed to process check-in."
+                    );
+                }
+            } catch (err) {
+                showResult("error", "Network Error", "Unable to communicate with the check-in server.");
+            }
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            processToken(decodedText);
+        }
+
+        function startScanner() {
+            if (isScanning) return;
+            const qrReaderDiv = document.getElementById("qr-reader");
+            qrReaderDiv.style.display = "block";
+
+            html5QrCode = new Html5Qrcode("qr-reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+            html5QrCode.start(
+                { facingMode: "environment" },
+                config,
+                onScanSuccess
+            ).then(() => {
+                isScanning = true;
+                document.getElementById("btn-start-scan").style.display = "none";
+                document.getElementById("btn-stop-scan").style.display = "inline-block";
+            }).catch(err => {
+                showResult("warning", "Camera Notice", "Camera could not be accessed. You can still use the manual token input below.");
+            });
+        }
+
+        function stopScanner() {
+            if (!isScanning || !html5QrCode) return;
+            html5QrCode.stop().then(() => {
+                isScanning = false;
+                document.getElementById("qr-reader").style.display = "none";
+                document.getElementById("btn-start-scan").style.display = "inline-block";
+                document.getElementById("btn-stop-scan").style.display = "none";
+            }).catch(err => console.error(err));
+        }
+
+        function handleManualSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById("manual-token");
+            const token = input.value.trim();
+            if (token) {
+                processToken(token);
+                input.value = "";
+            }
+        }
+    </script>
+</body>
+</html>
