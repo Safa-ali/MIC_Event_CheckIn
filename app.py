@@ -1,5 +1,6 @@
 import os
 import io
+import csv
 import base64
 import secrets
 import sqlite3
@@ -15,6 +16,7 @@ from flask import (
     flash,
     abort,
     jsonify,
+    Response,
 )
 import qrcode
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -324,7 +326,8 @@ def organizer_events():
         events = conn.execute(
             """
             SELECT e.id, e.name, e.event_date, e.capacity,
-                   (SELECT COUNT(*) FROM registrations WHERE event_id = e.id) AS registered_count
+                   (SELECT COUNT(*) FROM registrations WHERE event_id = e.id) AS registered_count,
+                   (SELECT COUNT(*) FROM registrations WHERE event_id = e.id AND checked_in_at IS NOT NULL) AS checked_in_count
             FROM events e
             WHERE e.created_by = ?
             ORDER BY e.event_date ASC, e.id DESC
@@ -603,6 +606,253 @@ def api_checkin():
         return jsonify({"success": False, "message": "A server error occurred during check-in."}), 500
     finally:
         conn.close()
+
+
+# ==============================================================================
+# Phase 6A: Live Attendance Dashboard
+# ==============================================================================
+
+@app.route("/organizer/dashboard/<int:event_id>")
+@login_required
+@role_required("organizer")
+def organizer_dashboard_event(event_id):
+    """
+    Live attendance dashboard for a specific event owned by the logged-in organizer.
+    Auto-refreshes every 10 seconds via HTML meta tag.
+    """
+    conn = get_db_connection()
+    try:
+        # Fetch event and enforce ownership
+        event = conn.execute(
+            "SELECT id, name, event_date, capacity, created_by FROM events WHERE id = ?",
+            (event_id,)
+        ).fetchone()
+
+        if not event:
+            abort(404)
+
+        if event["created_by"] != session["user_id"]:
+            abort(403)
+
+        # Fetch all attendees for this event
+        attendees = conn.execute(
+            """
+            SELECT u.name AS attendee_name, u.email AS attendee_email,
+                   r.id AS reg_id, r.registered_at, r.checked_in_at
+            FROM registrations r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.event_id = ?
+            ORDER BY r.registered_at ASC
+            """,
+            (event_id,)
+        ).fetchall()
+    finally:
+        conn.close()
+
+    # Compute summary statistics
+    total_registered = len(attendees)
+    total_checked_in = sum(1 for a in attendees if a["checked_in_at"])
+    total_remaining = total_registered - total_checked_in
+    checkin_pct = round((total_checked_in / total_registered * 100) if total_registered > 0 else 0)
+
+    stats = {
+        "total_registered": total_registered,
+        "total_checked_in": total_checked_in,
+        "total_remaining": total_remaining,
+        "checkin_pct": checkin_pct,
+    }
+
+    return render_template(
+        "organizer_dashboard.html",
+        event=event,
+        attendees=attendees,
+        stats=stats,
+        name=session.get("name"),
+        now=datetime.now().strftime("%H:%M:%S"),
+    )
+
+
+# ==============================================================================
+# Phase 6B: CSV Export
+# ==============================================================================
+
+@app.route("/organizer/dashboard/<int:event_id>/export")
+@login_required
+@role_required("organizer")
+def export_attendance_csv(event_id):
+    """
+    Generates and serves a CSV file of all attendees for an event owned by the logged-in organizer.
+    All generation is performed in-memory — zero database writes, zero disk writes.
+    """
+    conn = get_db_connection()
+    try:
+        # Fetch event and enforce ownership
+        event = conn.execute(
+            "SELECT id, name, event_date, created_by FROM events WHERE id = ?",
+            (event_id,)
+        ).fetchone()
+
+        if not event:
+            abort(404)
+
+        if event["created_by"] != session["user_id"]:
+            abort(403)
+
+        # Fetch all attendees
+        attendees = conn.execute(
+            """
+            SELECT r.id AS reg_id, u.name AS attendee_name, u.email AS attendee_email,
+                   r.registered_at, r.checked_in_at
+            FROM registrations r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.event_id = ?
+            ORDER BY r.registered_at ASC
+            """,
+            (event_id,)
+        ).fetchall()
+    finally:
+        conn.close()
+
+    # Build CSV in-memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Registration ID", "Attendee Name", "Attendee Email",
+                     "Registered At", "Checked In", "Check-In Time"])
+
+    for a in attendees:
+        writer.writerow([
+            a["reg_id"],
+            a["attendee_name"],
+            a["attendee_email"],
+            a["registered_at"],
+            "Yes" if a["checked_in_at"] else "No",
+            a["checked_in_at"] if a["checked_in_at"] else "",
+        ])
+
+    # Sanitize event name for filename
+    safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in event["name"])
+    filename = f"attendance_{safe_name}_{event['event_date']}.csv"
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+# ==============================================================================
+# Phase 6D: AI-Powered Event Insights
+# ==============================================================================
+
+def _build_fallback_stats(event, attendees):
+    """
+    Builds a statistics dictionary from SQLite data for the fallback summary.
+    """
+    total_registered = len(attendees)
+    checked_in_list = [a for a in attendees if a["checked_in_at"]]
+    total_checked_in = len(checked_in_list)
+    total_not_arrived = total_registered - total_checked_in
+    check_in_rate = round((total_checked_in / total_registered * 100) if total_registered > 0 else 0)
+
+    timestamps = sorted([a["checked_in_at"] for a in checked_in_list if a["checked_in_at"]])
+    first_checkin = timestamps[0] if timestamps else None
+    last_checkin = timestamps[-1] if timestamps else None
+
+    return {
+        "event_name": event["name"],
+        "event_date": event["event_date"],
+        "capacity": event["capacity"],
+        "total_registered": total_registered,
+        "total_checked_in": total_checked_in,
+        "total_not_arrived": total_not_arrived,
+        "check_in_rate": check_in_rate,
+        "first_checkin_at": first_checkin,
+        "last_checkin_at": last_checkin,
+    }
+
+
+@app.route("/organizer/dashboard/<int:event_id>/insights")
+@login_required
+@role_required("organizer")
+def event_insights(event_id):
+    """
+    Generates AI-powered event insights using statistics derived from SQLite.
+    API key is read server-side from the GEMINI_API_KEY environment variable.
+    Falls back gracefully to a statistical summary if AI is unavailable.
+    """
+    conn = get_db_connection()
+    try:
+        # Fetch event and enforce ownership
+        event = conn.execute(
+            "SELECT id, name, event_date, capacity, created_by FROM events WHERE id = ?",
+            (event_id,)
+        ).fetchone()
+
+        if not event:
+            abort(404)
+
+        if event["created_by"] != session["user_id"]:
+            abort(403)
+
+        # Fetch attendees for statistics
+        attendees = conn.execute(
+            """
+            SELECT r.checked_in_at
+            FROM registrations r
+            WHERE r.event_id = ?
+            """,
+            (event_id,)
+        ).fetchall()
+    finally:
+        conn.close()
+
+    # Build verified stats from database (never from client input)
+    fallback_stats = _build_fallback_stats(event, attendees)
+    ai_text = None
+    ai_error = None
+
+    # Attempt AI-powered summary — fully server-side, API key never exposed
+    gemini_api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if gemini_api_key:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=gemini_api_key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+
+            prompt = f"""You are an event analytics assistant. Based on the following verified attendance
+statistics for a real event, provide a concise, professional summary (3-5 sentences)
+covering: check-in rate interpretation, no-show rate observations, and any notable patterns.
+Do not invent statistics. Only interpret the numbers provided below.
+
+Event: {fallback_stats['event_name']}
+Date: {fallback_stats['event_date']}
+Capacity: {fallback_stats['capacity']}
+Registered Attendees: {fallback_stats['total_registered']}
+Checked In: {fallback_stats['total_checked_in']}
+Not Yet Arrived: {fallback_stats['total_not_arrived']}
+Check-In Rate: {fallback_stats['check_in_rate']}%
+First Check-In At: {fallback_stats['first_checkin_at'] or 'N/A'}
+Most Recent Check-In At: {fallback_stats['last_checkin_at'] or 'N/A'}"""
+
+            response = model.generate_content(
+                prompt,
+                generation_config={"max_output_tokens": 300, "temperature": 0.3},
+                request_options={"timeout": 10},
+            )
+            ai_text = response.text.strip() if response.text else None
+        except Exception as e:
+            ai_error = "AI service is currently unavailable. Showing statistical summary."
+    else:
+        ai_error = "AI insights are not configured (GEMINI_API_KEY not set). Showing statistical summary."
+
+    return render_template(
+        "insights.html",
+        event=event,
+        stats=fallback_stats,
+        ai_text=ai_text,
+        ai_error=ai_error,
+        name=session.get("name"),
+    )
 
 
 # ==============================================================================

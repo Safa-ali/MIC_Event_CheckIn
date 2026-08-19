@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Insights — {{ event.name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="container container-wide">
+        <div class="card card-wide">
+            <!-- Header -->
+            <div class="header-flex">
+                <div>
+                    <div class="role-badge role-organizer">Organizer</div>
+                    <h1>&#129302; AI Event Insights</h1>
+                    <p class="subtitle">
+                        <strong class="highlight-name">{{ event.name }}</strong>
+                        &nbsp;·&nbsp; {{ event.event_date }}
+                    </p>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('organizer_dashboard_event', event_id=event.id) }}" class="btn btn-secondary">&larr; Dashboard</a>
+                </div>
+            </div>
+
+            <!-- Statistics Summary (always shown) -->
+            <div class="insights-stats-grid">
+                <div class="insights-stat">
+                    <span class="insights-stat-value">{{ stats.total_registered }}</span>
+                    <span class="insights-stat-label">Registered</span>
+                </div>
+                <div class="insights-stat insights-stat-success">
+                    <span class="insights-stat-value">{{ stats.total_checked_in }}</span>
+                    <span class="insights-stat-label">Checked In</span>
+                </div>
+                <div class="insights-stat insights-stat-warning">
+                    <span class="insights-stat-value">{{ stats.total_not_arrived }}</span>
+                    <span class="insights-stat-label">Not Arrived</span>
+                </div>
+                <div class="insights-stat insights-stat-accent">
+                    <span class="insights-stat-value">{{ stats.check_in_rate }}%</span>
+                    <span class="insights-stat-label">Check-In Rate</span>
+                </div>
+            </div>
+
+            <div class="insights-meta">
+                <p>&#9200; First check-in: <strong>{{ stats.first_checkin_at or 'None yet' }}</strong></p>
+                <p>&#9200; Most recent check-in: <strong>{{ stats.last_checkin_at or 'None yet' }}</strong></p>
+                <p>&#128191; Event capacity: <strong>{{ stats.capacity }}</strong></p>
+            </div>
+
+            <!-- AI Summary or Fallback -->
+            {% if ai_text %}
+            <div class="insights-ai-box">
+                <div class="insights-ai-header">
+                    <span class="insights-ai-badge">&#129302; AI-Generated Summary</span>
+                    <span class="insights-source-note">Based on verified database statistics</span>
+                </div>
+                <p class="insights-ai-text">{{ ai_text }}</p>
+            </div>
+            {% else %}
+            <div class="insights-fallback-box">
+                <div class="insights-fallback-header">
+                    <span class="insights-fallback-badge">&#128202; Statistical Summary</span>
+                </div>
+                {% if ai_error %}
+                <p class="insights-fallback-notice">{{ ai_error }}</p>
+                {% endif %}
+                <table class="fallback-stats-table">
+                    <tbody>
+                        <tr>
+                            <td>Event</td>
+                            <td><strong>{{ stats.event_name }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Date</td>
+                            <td><strong>{{ stats.event_date }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Capacity</td>
+                            <td><strong>{{ stats.capacity }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Registered</td>
+                            <td><strong>{{ stats.total_registered }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Checked In</td>
+                            <td><strong>{{ stats.total_checked_in }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Not Yet Arrived</td>
+                            <td><strong>{{ stats.total_not_arrived }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Check-In Rate</td>
+                            <td><strong>{{ stats.check_in_rate }}%</strong></td>
+                        </tr>
+                        <tr>
+                            <td>First Check-In</td>
+                            <td><strong>{{ stats.first_checkin_at or 'None yet' }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Most Recent Check-In</td>
+                            <td><strong>{{ stats.last_checkin_at or 'None yet' }}</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <div class="card-footer footer-flex">
+                <a href="{{ url_for('organizer_dashboard_event', event_id=event.id) }}" class="back-link">&larr; Back to Dashboard</a>
+                <a href="{{ url_for('logout') }}" class="btn-text">Log Out</a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

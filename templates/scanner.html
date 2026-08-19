@@ -14,12 +14,21 @@
             <div class="header-flex">
                 <div>
                     <div class="role-badge role-organizer">Organizer</div>
-                    <h1>Event Check-In Scanner</h1>
+                    <h1>
+                        Event Check-In Scanner
+                        <span id="queue-badge" class="queue-badge" style="display:none;">0 queued</span>
+                    </h1>
                     <p class="subtitle">Live QR scanning for organizer <strong class="highlight-name">{{ name }}</strong></p>
                 </div>
                 <div class="header-actions">
                     <a href="{{ url_for('organizer_events') }}" class="btn btn-secondary">My Events</a>
                 </div>
+            </div>
+
+            <!-- Connectivity Status Bar -->
+            <div id="connectivity-bar" class="connectivity-bar connectivity-online">
+                <span id="connectivity-dot" class="connectivity-dot dot-online"></span>
+                <span id="connectivity-text">Online &mdash; scans are processed immediately</span>
             </div>
 
             <!-- Live Status Alert Result Container -->
@@ -42,7 +51,6 @@
                 <div class="scanner-wrapper">
                     <div id="qr-reader" class="scanner-viewport"></div>
                 </div>
-
                 <div class="scanner-controls">
                     <button id="btn-start-scan" class="btn btn-primary" onclick="startScanner()">Start Camera Scanner</button>
                     <button id="btn-stop-scan" class="btn btn-secondary" style="display: none;" onclick="stopScanner()">Stop Camera</button>
@@ -54,13 +62,19 @@
                 <div class="section-divider">
                     <span>OR ENTER QR TOKEN MANUALLY</span>
                 </div>
-
                 <form id="manual-form" onsubmit="handleManualSubmit(event)" class="manual-token-form">
                     <div class="form-group-inline">
                         <input type="text" id="manual-token" placeholder="Paste or type 32+ character QR token..." required autocomplete="off">
                         <button type="submit" id="btn-manual-submit" class="btn btn-primary">Check In</button>
                     </div>
                 </form>
+            </div>
+
+            <!-- Offline Queue Panel (shown when queue is non-empty) -->
+            <div id="offline-queue-panel" class="offline-queue-panel" style="display:none;">
+                <p class="offline-queue-title">&#128338; Pending Offline Scans</p>
+                <ul id="offline-queue-list" class="offline-queue-list"></ul>
+                <p class="offline-queue-note">These scans will be submitted automatically when you reconnect.</p>
             </div>
 
             <div class="card-footer footer-flex">
@@ -70,14 +84,124 @@
         </div>
     </main>
 
-    <!-- Scanner Script -->
     <script>
+        // ======================================================================
+        // Configuration & State
+        // ======================================================================
+        const QUEUE_KEY = "mic_scan_queue";
         let html5QrCode = null;
         let isScanning = false;
         let lastScannedToken = "";
         let lastScanTimestamp = 0;
+        let isSyncing = false;
 
-        function showResult(type, title, message, attendee = "", eventName = "", checkinTime = "") {
+        // ======================================================================
+        // Queue Management (localStorage)
+        // ======================================================================
+        function getQueue() {
+            try {
+                return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveQueue(queue) {
+            localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+        }
+
+        function enqueueToken(token) {
+            const queue = getQueue();
+            if (queue.includes(token)) {
+                showResult("warning", "&#9888; Already Queued",
+                    "This token is already in the offline queue. It will be submitted when you reconnect.",
+                    "", "", "");
+                return false;
+            }
+            queue.push(token);
+            saveQueue(queue);
+            renderQueueUI();
+            return true;
+        }
+
+        function dequeueToken(token) {
+            const queue = getQueue().filter(t => t !== token);
+            saveQueue(queue);
+            renderQueueUI();
+        }
+
+        function renderQueueUI() {
+            const queue = getQueue();
+            const badge = document.getElementById("queue-badge");
+            const panel = document.getElementById("offline-queue-panel");
+            const list = document.getElementById("offline-queue-list");
+
+            if (queue.length > 0) {
+                badge.textContent = queue.length + " queued";
+                badge.style.display = "inline-flex";
+                panel.style.display = "block";
+                list.innerHTML = queue.map(t =>
+                    `<li class="offline-queue-item">&#128248; <code>${t.substring(0, 20)}...</code></li>`
+                ).join("");
+            } else {
+                badge.style.display = "none";
+                panel.style.display = "none";
+            }
+        }
+
+        // ======================================================================
+        // Connectivity Detection
+        // ======================================================================
+        function updateConnectivityUI(online) {
+            const bar = document.getElementById("connectivity-bar");
+            const dot = document.getElementById("connectivity-dot");
+            const text = document.getElementById("connectivity-text");
+            if (online) {
+                bar.className = "connectivity-bar connectivity-online";
+                dot.className = "connectivity-dot dot-online";
+                text.textContent = "Online \u2014 scans are processed immediately";
+            } else {
+                bar.className = "connectivity-bar connectivity-offline";
+                dot.className = "connectivity-dot dot-offline";
+                text.textContent = "Offline \u2014 scans are being queued and will sync when reconnected";
+            }
+        }
+
+        window.addEventListener("online", () => {
+            updateConnectivityUI(true);
+            syncQueue();
+        });
+        window.addEventListener("offline", () => {
+            updateConnectivityUI(false);
+        });
+
+        // Initialise to current state
+        updateConnectivityUI(navigator.onLine);
+
+        // ======================================================================
+        // Queue Sync (sequential, one token at a time)
+        // ======================================================================
+        async function syncQueue() {
+            if (isSyncing) return;
+            const queue = getQueue();
+            if (queue.length === 0) return;
+
+            isSyncing = true;
+            showResult("info", "&#8635; Syncing Queue",
+                `Syncing ${queue.length} offline scan(s)...`, "", "", "");
+
+            for (const token of [...queue]) {
+                if (!navigator.onLine) break; // Stop if we go offline again mid-sync
+                await submitToken(token, true);
+                dequeueToken(token);
+            }
+            isSyncing = false;
+        }
+
+        // ======================================================================
+        // Result Display
+        // ======================================================================
+        function showResult(type, title, message, attendee, eventName, checkinTime) {
             const box = document.getElementById("scan-result");
             const badge = document.getElementById("result-badge");
             const resTitle = document.getElementById("result-title");
@@ -90,14 +214,14 @@
             const resTime = document.getElementById("result-time");
 
             box.className = "scanner-result-box result-" + type;
-            badge.innerText = type.toUpperCase();
-            resTitle.innerText = title;
-            resMsg.innerText = message;
-            resTime.innerText = new Date().toLocaleTimeString();
+            badge.innerHTML = type.toUpperCase();
+            resTitle.innerHTML = title;
+            resMsg.textContent = message;
+            resTime.textContent = new Date().toLocaleTimeString();
 
             if (attendee || eventName) {
-                resAttendee.innerText = attendee || "N/A";
-                resEvent.innerText = eventName || "N/A";
+                resAttendee.textContent = attendee || "N/A";
+                resEvent.textContent = eventName || "N/A";
                 resDetails.style.display = "block";
             } else {
                 resDetails.style.display = "none";
@@ -105,7 +229,7 @@
 
             if (checkinTime) {
                 checkinRow.style.display = "block";
-                resCheckinTime.innerText = checkinTime;
+                resCheckinTime.textContent = checkinTime;
             } else {
                 checkinRow.style.display = "none";
             }
@@ -114,96 +238,89 @@
             box.scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
 
+        // ======================================================================
+        // Token Submission
+        // ======================================================================
+        async function submitToken(qrToken, fromQueue) {
+            try {
+                const response = await fetch("{{ url_for('api_checkin') }}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                    body: JSON.stringify({ qr_token: qrToken })
+                });
+                const data = await response.json();
+
+                const prefix = fromQueue ? "[Synced] " : "";
+
+                if (response.status === 200 && data.success) {
+                    showResult("success", prefix + "&#10003; Check-In Successful!", data.message,
+                        data.attendee_name, data.event_name, data.checked_in_at);
+                } else if (response.status === 400) {
+                    showResult("warning", prefix + "&#9888; Duplicate Check-In", data.message,
+                        data.attendee_name || "Attendee", data.event_name || "", data.checked_in_at || "");
+                } else if (response.status === 403) {
+                    showResult("error", prefix + "&#9940; Unauthorized Event", data.message, "", data.event_name || "", "");
+                } else if (response.status === 404) {
+                    showResult("error", prefix + "&#10005; Invalid QR Code", data.message, "", "", "");
+                } else {
+                    showResult("error", prefix + "Error", data.message || "Failed to process check-in.", "", "", "");
+                }
+            } catch (err) {
+                showResult("error", "Network Error", "Unable to reach the check-in server.", "", "", "");
+            }
+        }
+
+        // ======================================================================
+        // Main Token Processing (online vs offline routing)
+        // ======================================================================
         async function processToken(qrToken) {
             if (!qrToken || qrToken.trim() === "") return;
             qrToken = qrToken.trim();
 
-            // Prevent rapid double-reads of the same token in camera loop
+            // Debounce: prevent re-processing the same token within 3 seconds (camera loop)
             const now = Date.now();
-            if (qrToken === lastScannedToken && (now - lastScanTimestamp) < 3000) {
-                return;
-            }
+            if (qrToken === lastScannedToken && (now - lastScanTimestamp) < 3000) return;
             lastScannedToken = qrToken;
             lastScanTimestamp = now;
 
-            try {
-                const response = await fetch("{{ url_for('api_checkin') }}", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Accept": "application/json"
-                    },
-                    body: JSON.stringify({ qr_token: qrToken })
-                });
-
-                const data = await response.json();
-
-                if (response.status === 200 && data.success) {
-                    showResult(
-                        "success",
-                        "✓ Check-In Successful!",
-                        data.message,
-                        data.attendee_name,
-                        data.event_name,
-                        data.checked_in_at
-                    );
-                } else if (response.status === 400) {
-                    showResult(
-                        "warning",
-                        "⚠ Duplicate Check-In",
-                        data.message,
-                        data.attendee_name || "Registered Attendee",
-                        data.event_name || "",
-                        data.checked_in_at || ""
-                    );
-                } else if (response.status === 403) {
-                    showResult(
-                        "error",
-                        "⛔ Unauthorized Event",
-                        data.message,
-                        "",
-                        data.event_name || ""
-                    );
-                } else if (response.status === 404) {
-                    showResult(
-                        "error",
-                        "✕ Invalid QR Code",
-                        data.message
-                    );
-                } else {
-                    showResult(
-                        "error",
-                        "Error",
-                        data.message || "Failed to process check-in."
-                    );
+            if (navigator.onLine) {
+                // Online: submit immediately via existing Phase 5 endpoint
+                await submitToken(qrToken, false);
+            } else {
+                // Offline: queue for later sync
+                const added = enqueueToken(qrToken);
+                if (added) {
+                    showResult("warning",
+                        "&#128338; Offline &mdash; Scan Queued",
+                        "You are offline. This scan has been saved and will be submitted automatically when connectivity is restored.",
+                        "", "", "");
                 }
-            } catch (err) {
-                showResult("error", "Network Error", "Unable to communicate with the check-in server.");
             }
         }
 
-        function onScanSuccess(decodedText, decodedResult) {
+        // ======================================================================
+        // Camera Scanner
+        // ======================================================================
+        function onScanSuccess(decodedText) {
             processToken(decodedText);
         }
 
         function startScanner() {
             if (isScanning) return;
-            const qrReaderDiv = document.getElementById("qr-reader");
-            qrReaderDiv.style.display = "block";
-
+            document.getElementById("qr-reader").style.display = "block";
             html5QrCode = new Html5Qrcode("qr-reader");
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
             html5QrCode.start(
                 { facingMode: "environment" },
-                config,
+                { fps: 10, qrbox: { width: 250, height: 250 } },
                 onScanSuccess
             ).then(() => {
                 isScanning = true;
                 document.getElementById("btn-start-scan").style.display = "none";
                 document.getElementById("btn-stop-scan").style.display = "inline-block";
-            }).catch(err => {
-                showResult("warning", "Camera Notice", "Camera could not be accessed. You can still use the manual token input below.");
+            }).catch(() => {
+                showResult("warning", "Camera Notice",
+                    "Camera could not be accessed. You can still use the manual token input below.",
+                    "", "", "");
             });
         }
 
@@ -217,6 +334,9 @@
             }).catch(err => console.error(err));
         }
 
+        // ======================================================================
+        // Manual Input
+        // ======================================================================
         function handleManualSubmit(e) {
             e.preventDefault();
             const input = document.getElementById("manual-token");
@@ -225,6 +345,16 @@
                 processToken(token);
                 input.value = "";
             }
+        }
+
+        // ======================================================================
+        // Initialise queue UI on page load
+        // ======================================================================
+        renderQueueUI();
+
+        // Auto-sync on page load if we're online and have queued items
+        if (navigator.onLine && getQueue().length > 0) {
+            syncQueue();
         }
     </script>
 </body>

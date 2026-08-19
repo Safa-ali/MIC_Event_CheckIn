@@ -12,7 +12,7 @@
             <div class="header-flex">
                 <div>
                     <div class="role-badge role-organizer">Organizer</div>
-                    <h1>My Managed Events</h1>
+                    <h1>My Events</h1>
                     <p class="subtitle">Events created by <strong class="highlight-name">{{ name }}</strong></p>
                 </div>
                 <div class="header-actions">
@@ -33,16 +33,32 @@
             {% if events %}
                 <div class="event-list">
                     {% for event in events %}
+                        {% set spots_left = event.capacity - event.registered_count %}
                         <div class="event-card">
                             <div class="event-header">
-                                <span class="event-id">ID #{{ event['id'] }}</span>
-                                <span class="event-capacity">
-                                    Registrations: {{ event['registered_count'] }} / {{ event['capacity'] }}
-                                </span>
+                                <span class="event-id">Event #{{ event.id }}</span>
+                                <div class="capacity-pill-group">
+                                    <span class="event-capacity">{{ event.registered_count }} / {{ event.capacity }} registered</span>
+                                    {% if event.checked_in_count is defined %}
+                                        <span class="event-capacity" style="color: var(--success);">{{ event.checked_in_count }} checked in</span>
+                                    {% endif %}
+                                    {% if spots_left <= 0 %}
+                                        <span class="spots-badge spots-full">Full</span>
+                                    {% else %}
+                                        <span class="spots-badge spots-available">{{ spots_left }} spots left</span>
+                                    {% endif %}
+                                </div>
                             </div>
-                            <h2 class="event-title">{{ event['name'] }}</h2>
-                            <div class="event-meta">
-                                <span class="event-date">&#128197; {{ event['event_date'] }}</span>
+                            <h2 class="event-title">{{ event.name }}</h2>
+                            <div class="event-card-body">
+                                <div class="event-meta">
+                                    <p>&#128197; {{ event.event_date }}</p>
+                                    <p>&#128101; Capacity: {{ event.capacity }}</p>
+                                </div>
+                                <div class="event-actions">
+                                    <a href="{{ url_for('organizer_dashboard_event', event_id=event.id) }}" class="btn btn-primary btn-small">&#128202; View Dashboard</a>
+                                    <a href="{{ url_for('organizer_scan') }}" class="btn btn-secondary btn-small">&#128247; Scan</a>
+                                </div>
                             </div>
                         </div>
                     {% endfor %}
@@ -51,7 +67,10 @@
                 <div class="empty-state">
                     <p class="empty-icon">&#128197;</p>
                     <h3>No events created yet</h3>
-                    <p>Click "Create Event" above to create your first event.</p>
+                    <p>Create your first event to start managing attendance.</p>
+                    <div style="margin-top: 1.25rem;">
+                        <a href="{{ url_for('create_event') }}" class="btn btn-primary">Create Your First Event</a>
+                    </div>
                 </div>
             {% endif %}
 

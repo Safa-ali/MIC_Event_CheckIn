@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="10">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ event.name }} — Attendance Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="container container-wide">
+        <div class="card card-wide">
+            <!-- Header -->
+            <div class="header-flex">
+                <div>
+                    <div class="role-badge role-organizer">Organizer</div>
+                    <h1>{{ event.name }}</h1>
+                    <p class="subtitle">
+                        &#128197; {{ event.event_date }} &nbsp;·&nbsp; Capacity: {{ event.capacity }}
+                        &nbsp;·&nbsp; Managed by <strong class="highlight-name">{{ name }}</strong>
+                    </p>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('organizer_dashboard_event', event_id=event.id) }}" class="btn btn-secondary">&#8635; Refresh Now</a>
+                    <a href="{{ url_for('organizer_events') }}" class="btn btn-secondary">My Events</a>
+                </div>
+            </div>
+
+            <!-- Auto-refresh notice -->
+            <div class="auto-refresh-bar">
+                <span class="pulse-dot"></span>
+                <span>Auto-refreshing every 10 seconds</span>
+                <span class="refresh-timestamp">Last loaded: {{ now }}</span>
+            </div>
+
+            <!-- Stat Cards -->
+            <div class="stat-cards">
+                <div class="stat-card">
+                    <span class="stat-number">{{ stats.total_registered }}</span>
+                    <span class="stat-label">Registered</span>
+                </div>
+                <div class="stat-card stat-card-success">
+                    <span class="stat-number">{{ stats.total_checked_in }}</span>
+                    <span class="stat-label">Checked In</span>
+                </div>
+                <div class="stat-card stat-card-warning">
+                    <span class="stat-number">{{ stats.total_remaining }}</span>
+                    <span class="stat-label">Not Arrived</span>
+                </div>
+                <div class="stat-card stat-card-accent">
+                    <span class="stat-number">{{ stats.checkin_pct }}%</span>
+                    <span class="stat-label">Check-In Rate</span>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-section">
+                <div class="progress-labels">
+                    <span>Check-in Progress</span>
+                    <span>{{ stats.total_checked_in }} / {{ stats.total_registered }}</span>
+                </div>
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" style="width: {{ stats.checkin_pct }}%;"></div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-row">
+                <a href="{{ url_for('export_attendance_csv', event_id=event.id) }}" class="btn btn-secondary">&#11123; Export CSV</a>
+                <a href="{{ url_for('event_insights', event_id=event.id) }}" class="btn btn-secondary">&#129302; AI Insights</a>
+                <a href="{{ url_for('organizer_scan') }}" class="btn btn-secondary">&#128247; Open Scanner</a>
+            </div>
+
+            <!-- Attendee Table -->
+            {% if attendees %}
+            <div class="table-wrapper">
+                <table class="attendee-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Attendee Name</th>
+                            <th>Email</th>
+                            <th>Registered At</th>
+                            <th>Check-In Status</th>
+                            <th>Check-In Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in attendees %}
+                        <tr class="{% if a.checked_in_at %}row-checked-in{% endif %}">
+                            <td class="col-num">{{ loop.index }}</td>
+                            <td class="col-name">{{ a.attendee_name }}</td>
+                            <td class="col-email">{{ a.attendee_email }}</td>
+                            <td class="col-time">{{ a.registered_at }}</td>
+                            <td class="col-status">
+                                {% if a.checked_in_at %}
+                                    <span class="status-pill status-checked-in">&#10003; Checked In</span>
+                                {% else %}
+                                    <span class="status-pill status-pending">Not Arrived</span>
+                                {% endif %}
+                            </td>
+                            <td class="col-time">
+                                {% if a.checked_in_at %}
+                                    <span class="checkin-ts">{{ a.checked_in_at }}</span>
+                                {% else %}
+                                    <span class="col-empty">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p class="empty-icon">&#128101;</p>
+                <h3>No attendees registered yet</h3>
+                <p>Share your event so attendees can register and receive their QR badges.</p>
+            </div>
+            {% endif %}
+
+            <div class="card-footer footer-flex">
+                <a href="{{ url_for('organizer_events') }}" class="back-link">&larr; Back to My Events</a>
+                <a href="{{ url_for('logout') }}" class="btn-text">Log Out</a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
