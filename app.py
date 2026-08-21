@@ -20,9 +20,10 @@ from flask import (
 )
 import qrcode
 from werkzeug.security import generate_password_hash, check_password_hash
-from database import get_db_connection
+from database import get_db_connection, init_db
 
 app = Flask(__name__)
+init_db()
 
 # Secret key configuration for secure session management
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key_mic_event_checkin_2026")
